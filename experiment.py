@@ -34,6 +34,7 @@ from klibs.KLExceptions import TrialException
 LIKELY = "likely"
 UNLIKELY = "unlikely"
 
+GRAY = (128, 128, 128, 255)
 WHITE = (255, 255, 255, 255)
 ORANGE = (255, 165, 0, 255)
 
@@ -49,7 +50,7 @@ class sequential_pointing(klibs.Experiment):
         offset_y = P.screen_y * 0.4  # type: ignore[op_arithmetic]
         offset_x = P.screen_x * 0.25  # type: ignore[op_arithmetic]
 
-        placeholder_size = 4 * P.ppi
+        placeholder_size = P.ppi
 
         self.placeholder = kld.Circle(diameter=placeholder_size, fill=WHITE)
         self.target = kld.Circle(diameter=placeholder_size, fill=ORANGE)
@@ -141,6 +142,8 @@ class sequential_pointing(klibs.Experiment):
             else "bottom"
         )
 
+        self.present_stimuli(pre_trial=True)
+
         # participant readiness signalled by keypress
         while True:
             q = pump(True)
@@ -155,7 +158,7 @@ class sequential_pointing(klibs.Experiment):
 
                 break
 
-        self.present_stimuli(target_visible=False)
+        self.present_stimuli(target_visible=self.block_condition == "immediate")
 
     def trial(self):  # type: ignore[override]
         time_to_center = None
@@ -165,6 +168,10 @@ class sequential_pointing(klibs.Experiment):
         placeholder_touched = None
 
         trial_timer = Stopwatch()
+
+        # NOTE: swap these lines when task is moved to testing computer
+        # mouse_pos(position=(P.screen_x // 2, 0))  # type: ignore[op_arithmetic]
+        mouse_pos(position=(0, P.screen_y // 2))  # type: ignore[op_arithmetic]
 
         while not touched_center:
             q = pump(True)
@@ -238,14 +245,21 @@ class sequential_pointing(klibs.Experiment):
     def clean_up(self):
         pass
 
-    def present_stimuli(self, target_visible: bool = False):
+    def present_stimuli(self, pre_trial: bool = False, target_visible: bool = False):
         fill()
 
         for loc in self.locs:
             if target_visible and loc == self.block_likelihood[self.target_location]:  # type: ignore[attr-defined]
-                blit(self.target, location=self.locs[loc])
+                blit(
+                    kld.Circle(diameter=P.ppi, fill=ORANGE).render(),
+                    location=self.locs[loc],
+                )
             else:
-                blit(self.placeholder, location=self.locs[loc])
+                colour = GRAY if pre_trial else WHITE
+                blit(
+                    kld.Circle(diameter=P.ppi, fill=colour).render(),
+                    location=self.locs[loc],
+                )
 
         flip()
 
