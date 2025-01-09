@@ -6,7 +6,7 @@
 collect_demographics = True
 manual_demographics_collection = False
 manual_trial_generation = False
-run_practice_blocks = True
+run_practice_blocks = False
 multi_user = False
 view_distance = 57 # in centimeters, 57cm = 1 deg of visual angle per cm of screen
 allow_hidpi = True
@@ -40,8 +40,8 @@ saccadic_motion_threshold = 0.15
 # Experiment Structure
 #########################################
 multi_session_project = False
-trials_per_block = 0
-blocks_per_experiment = 1
+trials_per_block = 4
+blocks_per_experiment = 3
 conditions = []
 default_condition = None
 
@@ -66,3 +66,4 @@ append_hostname = False
 #########################################
 # PROJECT-SPECIFIC VARS
 #########################################
+trials_per_practice_block = 4
