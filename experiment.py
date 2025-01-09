@@ -6,11 +6,6 @@ import os
 from csv import DictWriter
 from random import shuffle
 
-# from random import randrange
-#
-# # local imports
-# from get_key_state import get_key_state  # type: ignore[import]
-#
 import klibs
 from klibs import P
 
@@ -26,10 +21,7 @@ from klibs.KLBoundary import CircleBoundary, BoundarySet
 from klibs.KLTime import CountDown, Stopwatch
 from klibs.KLExceptions import TrialException
 
-#
 # from natnetclient_rough import NatNetClient  # type: ignore[import]
-
-# from OptiTracker import OptiTracker  # type: ignore[import]
 
 LIKELY = "likely"
 UNLIKELY = "unlikely"
@@ -43,11 +35,10 @@ class sequential_pointing(klibs.Experiment):
 
     def setup(self):
 
-        # self.ot = OptiTracker(marker_count=10, sample_rate=120)
         # self.nnc = NatNetClient()
         # self.nnc.marker_listener = self.marker_set_listener
 
-        offset_y = P.screen_y * 0.4  # type: ignore[op_arithmetic]
+        offset_y = P.screen_y * 0.2  # type: ignore[op_arithmetic]
         offset_x = P.screen_x * 0.25  # type: ignore[op_arithmetic]
 
         placeholder_size = P.ppi
@@ -56,18 +47,18 @@ class sequential_pointing(klibs.Experiment):
         self.target = kld.Circle(diameter=placeholder_size, fill=ORANGE)
 
         self.locs = {
-            "mid": (offset_x, P.screen_y // 2),  # type: ignore[op_arithmetic]
-            "top": (offset_x * 2, offset_y),
-            "bot": (offset_x * 2, P.screen_y - offset_y),
+            "mid": (P.screen_x // 2, P.screen_y - offset_y),  # type: ignore[op_arithmetic]
+            "left": (offset_x, offset_y),
+            "right": (P.screen_x - offset_x, offset_y),
         }
 
         # boundaries for click detection
-        self.click_bound = BoundarySet(
+        self.boundaries = BoundarySet(
             [
                 CircleBoundary(
                     label=loc, center=self.locs[loc], radius=placeholder_size // 2
                 )
-                for loc in ["mid", "top", "bot"]
+                for loc in ["mid", "left", "right"]
             ]
         )
 
@@ -80,7 +71,7 @@ class sequential_pointing(klibs.Experiment):
 
         # set up condition factors
         self.condition_sequence = ["delayed", "immediate", "delayed"]
-        self.likely_location = ["top", "bot"]
+        self.likely_location = ["left", "right"]
         shuffle(self.likely_location)
 
         # expand task sequence to include practice blocks
@@ -137,9 +128,9 @@ class sequential_pointing(klibs.Experiment):
 
         # generate trial file location
         self.opti_dir = (
-            self.opti_dir + f"/{P.trial_number}_target_at_" + "top"
-            if self.block_likelihood[self.target_location] == "top"  # type: ignore[attr-defined]
-            else "bottom"
+            self.opti_dir + f"/{P.trial_number}_target_at_" + "left"
+            if self.block_likelihood[self.target_location] == "left"  # type: ignore[attr-defined]
+            else "right"
         )
 
         self.present_stimuli(pre_trial=True)
@@ -158,6 +149,7 @@ class sequential_pointing(klibs.Experiment):
 
                 break
 
+        mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
         self.present_stimuli(target_visible=self.block_condition == "immediate")
 
     def trial(self):  # type: ignore[override]
@@ -169,9 +161,6 @@ class sequential_pointing(klibs.Experiment):
 
         trial_timer = Stopwatch()
 
-        # NOTE: swap these lines when task is moved to testing computer
-        # mouse_pos(position=(P.screen_x // 2, 0))  # type: ignore[op_arithmetic]
-        mouse_pos(position=(0, P.screen_y // 2))  # type: ignore[op_arithmetic]
 
         while not touched_center:
             q = pump(True)
@@ -179,7 +168,7 @@ class sequential_pointing(klibs.Experiment):
 
             curr_pos = mouse_pos()
 
-            which_bound = self.click_bound.which_boundary(curr_pos)
+            which_bound = self.boundaries.which_boundary(curr_pos)
 
             if which_bound is not None:
 
@@ -216,7 +205,7 @@ class sequential_pointing(klibs.Experiment):
 
             curr_pos = mouse_pos()
 
-            which_bound = self.click_bound.which_boundary(curr_pos)
+            which_bound = self.boundaries.which_boundary(curr_pos)
 
             if which_bound is not None and which_bound != "mid":
                 time_to_selection = trial_timer.elapsed()
@@ -240,7 +229,7 @@ class sequential_pointing(klibs.Experiment):
         }
 
     def trial_clean_up(self):
-        pass
+        mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
 
     def clean_up(self):
         pass
@@ -253,12 +242,14 @@ class sequential_pointing(klibs.Experiment):
                 blit(
                     kld.Circle(diameter=P.ppi, fill=ORANGE).render(),
                     location=self.locs[loc],
+                    registration=5
                 )
             else:
                 colour = GRAY if pre_trial else WHITE
                 blit(
                     kld.Circle(diameter=P.ppi, fill=colour).render(),
                     location=self.locs[loc],
+                    registration=5
                 )
 
         flip()
