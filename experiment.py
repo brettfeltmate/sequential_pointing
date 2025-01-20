@@ -73,6 +73,8 @@ class sequential_pointing(klibs.Experiment):
         # NOTE: first "delayed" is to serve as the practice block
         self.condition_sequence = ["delayed", "delayed", "immediate", "immediate", "delayed"]
         self.likely_location = ["left", "right"]
+
+        # randomize initial location bias across participants
         shuffle(self.likely_location)
 
         # expand task sequence to include practice blocks
@@ -112,7 +114,7 @@ class sequential_pointing(klibs.Experiment):
             os.mkdir(self.opti_dir)
 
         # TODO: add task instructions
-        instrux = "Press any key to begin the block"
+        instrux = f"(TBD)\n\nPress any key to begin the block.\n(Targets this block will be {self.block_condition})"
 
         fill()
         message(text=instrux, location=P.screen_c, blit_txt=True)
@@ -122,8 +124,8 @@ class sequential_pointing(klibs.Experiment):
 
     def trial_prep(self):
 
-        # klibs lacks a direct method of altering independent variables between blocks
-        # so here we manually (and randomly) make likely/unlikely a 50/50 split
+        # klibs lacks a direct method of altering independent variables at the block level,
+        # so need to manually select target location to (mostly) fix the odds at 1:1.
         if self.block_condition == "immediate":
             self.target_location = choice([LIKELY, UNLIKELY])
 
