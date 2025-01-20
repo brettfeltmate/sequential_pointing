@@ -4,7 +4,7 @@ __author__ = "Brett Feltmate"
 
 import os
 from csv import DictWriter
-from random import shuffle
+from random import shuffle, choice
 
 import klibs
 from klibs import P
@@ -21,7 +21,7 @@ from klibs.KLBoundary import CircleBoundary, BoundarySet
 from klibs.KLTime import CountDown, Stopwatch
 from klibs.KLExceptions import TrialException
 
-# from natnetclient_rough import NatNetClient  # type: ignore[import]
+from natnetclient_rough import NatNetClient  # type: ignore[import]
 
 LIKELY = "likely"
 UNLIKELY = "unlikely"
@@ -35,8 +35,8 @@ class sequential_pointing(klibs.Experiment):
 
     def setup(self):
 
-        # self.nnc = NatNetClient()
-        # self.nnc.marker_listener = self.marker_set_listener
+        self.nnc = NatNetClient()
+        self.nnc.marker_listener = self.marker_set_listener
 
         offset_y = P.screen_y * 0.2  # type: ignore[op_arithmetic]
         offset_x = P.screen_x * 0.25  # type: ignore[op_arithmetic]
@@ -70,7 +70,8 @@ class sequential_pointing(klibs.Experiment):
         os.mkdir(f"OptiData/{P.p_id}/testing")
 
         # set up condition factors
-        self.condition_sequence = ["delayed", "immediate", "delayed"]
+        # NOTE: first "delayed" is to serve as the practice block
+        self.condition_sequence = ["delayed", "delayed", "immediate", "immediate", "delayed"]
         self.likely_location = ["left", "right"]
         shuffle(self.likely_location)
 
@@ -78,23 +79,19 @@ class sequential_pointing(klibs.Experiment):
         if P.run_practice_blocks:
             os.mkdir(f"OptiData/{P.p_id}/practice")
 
-            # expand factor sequences for practice blocks
-            self.condition_sequence = [
-                cond for _ in range(2) for cond in self.condition_sequence
-            ]
-            self.likely_location = [
-                loc for _ in range(2) for loc in self.likely_location
-            ]
-
             # insert practice blocks
-            self.insert_practice_block([1, 3, 5], trial_counts=P.trials_per_practice_block)  # type: ignore[arg-type]
+            self.insert_practice_block(1, trial_counts=P.trials_per_practice_block)  # type: ignore[arg-type]
+
+        # Otherwise, drop practice block
+        else:
+            _ = self.condition_sequence.pop(0)
 
     def block(self):
-        # extract block factors
+        # get block condition
         self.block_condition = self.condition_sequence.pop(0)
 
-        # swap likely location for second half of experiment
-        if P.block_number > P.blocks_per_experiment // 2:
+        # swap likelihoods for second "delayed" block
+        if P.block_number == 4:
             self.likely_location = self.likely_location[::-1]
 
         # map likelihoods to locations
@@ -106,7 +103,8 @@ class sequential_pointing(klibs.Experiment):
         # init block specific data dirs for mocap recordings
         self.opti_dir = f"OptiData/{P.p_id}"
         self.opti_dir += "/practice" if P.practicing else "/testing"
-        self.opti_dir += f"/block_{P.block_number}_{self.block_condition}_targets_{self.block_likelihood[LIKELY]}_bias"
+
+        self.opti_dir += f"/{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
 
         if os.path.exists(self.opti_dir):
             raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
@@ -114,7 +112,7 @@ class sequential_pointing(klibs.Experiment):
             os.mkdir(self.opti_dir)
 
         # TODO: add task instructions
-        instrux = "tbd\n\nPress any key to begin."
+        instrux = "Press any key to begin the block"
 
         fill()
         message(text=instrux, location=P.screen_c, blit_txt=True)
@@ -123,6 +121,12 @@ class sequential_pointing(klibs.Experiment):
         any_key()
 
     def trial_prep(self):
+
+        # klibs lacks a direct method of altering independent variables between blocks
+        # so here we manually (and randomly) make likely/unlikely a 50/50 split
+        if self.block_condition == "immediate":
+            self.target_location = choice([LIKELY, UNLIKELY])
+
         # establish target location
         self.target_loc = self.locs[self.block_likelihood[self.target_location]]  # type: ignore[attr-defined]
 
@@ -140,7 +144,7 @@ class sequential_pointing(klibs.Experiment):
             q = pump(True)
             # on keypress, start mocap recording (w/ some lead time)
             if key_pressed(key="space", queue=q):
-                # self.nnc.startup()
+                self.nnc.startup()
 
                 nnc_lead = CountDown(0.3)
                 while nnc_lead.counting():
@@ -150,6 +154,8 @@ class sequential_pointing(klibs.Experiment):
                 break
 
         mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
+
+        # For "immediate" blocks, present target at trial start
         self.present_stimuli(target_visible=self.block_condition == "immediate")
 
     def trial(self):  # type: ignore[override]
@@ -212,7 +218,7 @@ class sequential_pointing(klibs.Experiment):
                 placeholder_touched = which_bound
                 touched_placeholder = True
 
-        # self.nnc.shutdown()
+        self.nnc.shutdown()
         clear()
 
         return {
