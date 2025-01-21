@@ -47,6 +47,7 @@ class sequential_pointing(klibs.Experiment):
         self.target = kld.Circle(diameter=placeholder_size, fill=ORANGE)
 
         self.locs = {
+            "start": (P.screen_x // 2, P.screen_y),  # type: ignore[op_arithmetic]
             "mid": (P.screen_x // 2, P.screen_y - offset_y),  # type: ignore[op_arithmetic]
             "left": (offset_x, offset_y),
             "right": (P.screen_x - offset_x, offset_y),
@@ -58,7 +59,7 @@ class sequential_pointing(klibs.Experiment):
                 CircleBoundary(
                     label=loc, center=self.locs[loc], radius=placeholder_size // 2
                 )
-                for loc in ["mid", "left", "right"]
+                for loc in ["start", "mid", "left", "right"]
             ]
         )
 
@@ -71,7 +72,13 @@ class sequential_pointing(klibs.Experiment):
 
         # set up condition factors
         # NOTE: first "delayed" is to serve as the practice block
-        self.condition_sequence = ["delayed", "delayed", "immediate", "immediate", "delayed"]
+        self.condition_sequence = [
+            "delayed",
+            "delayed",
+            "immediate",
+            "immediate",
+            "delayed",
+        ]
         self.likely_location = ["left", "right"]
 
         # randomize initial location bias across participants
@@ -113,14 +120,7 @@ class sequential_pointing(klibs.Experiment):
         else:
             os.mkdir(self.opti_dir)
 
-        # TODO: add task instructions
-        instrux = f"(TBD)\n\nPress any key to begin the block.\n(Targets this block will be {self.block_condition})"
-
-        fill()
-        message(text=instrux, location=P.screen_c, blit_txt=True)
-        flip()
-
-        any_key()
+        self.present_instructions()
 
     def trial_prep(self):
 
@@ -141,45 +141,49 @@ class sequential_pointing(klibs.Experiment):
 
         self.present_stimuli(pre_trial=True)
 
-        # participant readiness signalled by keypress
-        while True:
-            q = pump(True)
-            # on keypress, start mocap recording (w/ some lead time)
-            if key_pressed(key="space", queue=q):
-                self.nnc.startup()
 
-                nnc_lead = CountDown(0.3)
-                while nnc_lead.counting():
-                    q = pump(True)
-                    ui_request(queue=q)
-
-                break
-
-        mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
+        if P.development_mode:
+            mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
 
         # For "immediate" blocks, present target at trial start
         self.present_stimuli(target_visible=self.block_condition == "immediate")
 
     def trial(self):  # type: ignore[override]
+        touched_start = False
         time_to_center = None
         time_to_selection = None
         touched_center = False
         touched_placeholder = False
         placeholder_touched = None
 
-        trial_timer = Stopwatch()
+        # spin up mocap listener
+        self.nnc.startup()
 
+        # provide a few frames worth of lead time
+        nnc_lead = CountDown(0.3)
+        while nnc_lead.counting():
+            q = pump(True)
+            ui_request(queue=q)
+
+        # participant readiness signalled by keypress
+        while touched_start is False:
+            q = pump(True)
+            _ = ui_request(queue=q)
+
+
+
+        trial_timer = Stopwatch()
 
         while not touched_center:
             q = pump(True)
             _ = ui_request(queue=q)
 
+            # continuously check for boundary touches
             curr_pos = mouse_pos()
-
             which_bound = self.boundaries.which_boundary(curr_pos)
-
             if which_bound is not None:
 
+                # admonish participant for skipping center
                 if which_bound != "mid":
                     clear()
 
@@ -201,12 +205,15 @@ class sequential_pointing(klibs.Experiment):
                     )
 
                 else:
+                    # record time to center touch
                     time_to_center = trial_timer.elapsed()
                     touched_center = True
 
+        # following center touch, present target if in "delayed" condition
         if self.block_condition == "delayed":
             self.present_stimuli(target_visible=True)
 
+        # wait for contact with either target placeholder
         while not touched_placeholder:
             q = pump(True)
             _ = ui_request(queue=q)
@@ -250,17 +257,68 @@ class sequential_pointing(klibs.Experiment):
                 blit(
                     kld.Circle(diameter=P.ppi, fill=ORANGE).render(),
                     location=self.locs[loc],
-                    registration=5
+                    registration=5,
                 )
             else:
                 colour = GRAY if pre_trial else WHITE
                 blit(
                     kld.Circle(diameter=P.ppi, fill=colour).render(),
                     location=self.locs[loc],
-                    registration=5
+                    registration=5,
                 )
 
         flip()
+
+    def present_instructions(self):
+        delayed = (
+            "To begin a trial, place your right index finger at the starting circle (bottom center of the monitor)."
+            "\n\n"
+            "Once you do, all circles will turn white. When that happens, touch the MIDDLE circle with your finger"
+            "\n"
+            "as quickly and accurately as possible."
+            "\n\n"
+            "Once you've touched the middle circle, one of the two furthest circles will turn orange."
+            "\n"
+            "Your task is then to touch the orange circle as quickly and accurately as possible."
+            "\n\n"
+            "Once the trial is complete, place your finger back at the starting circle to begin the next trial."
+        )
+
+        immediate = (
+            "To begin a trial, place your right index finger at the starting circle (bottom center of the monitor)."
+            "\n\n"
+            "Once you do, all circles will turn white, except for one of the two furthest circles, which will turn orange."
+            "\n\n"
+            "Once this happens, reach to touch the middle circle FIRST, as quickly and accurately as possible."
+            "\n"
+            "THEN, touch the orange circle as quickly and accurately as possible."
+            "\n\n"
+            "Once the trial is complete, place your finger back at the starting circle to begin the next trial."
+        )
+
+        instrux = delayed if self.block_condition == "delayed" else immediate
+
+        if P.practicing:
+            instrux += (
+                "\n\n"
+                "This PRACTICE block will consist of 5 trials."
+                "\n\n"
+                "(press any key to begin the block)"
+            )
+
+        else:
+            instrux += (
+                "\n\n"
+                "This block will consist of 50 trials."
+                "\n\n"
+                "(press any key to begin the block)"
+            )
+
+        fill()
+        message(text=instrux, location=P.screen_c, blit_txt=True)
+        flip()
+
+        any_key()
 
     def marker_set_listener(self, marker_set: dict) -> None:
         """Write marker set data to CSV file.
