@@ -13,7 +13,7 @@ from klibs.KLCommunication import message
 from klibs.KLGraphics import KLDraw as kld
 
 from klibs.KLGraphics import fill, flip, blit, clear
-from klibs.KLUserInterface import any_key, key_pressed, ui_request, mouse_pos
+from klibs.KLUserInterface import any_key, ui_request, mouse_pos
 
 from klibs.KLUtilities import pump
 from klibs.KLBoundary import CircleBoundary, BoundarySet
@@ -141,50 +141,53 @@ class sequential_pointing(klibs.Experiment):
 
         self.present_stimuli(pre_trial=True)
 
-
         if P.development_mode:
             mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
+
+        at_start_position = False
+
+        # wait for participant to touch start position before proceeding
+        while not at_start_position:
+            q = pump(True)
+            _ = ui_request(queue=q)
+
+            # check for start position touch
+            if self.boundaries.which_boundary(mouse_pos()) == "start":
+                at_start_position = True
+
+        # spin up mocap listener
+        self.nnc.startup()
+
+        # provide opti a 10 frame head start
+        nnc_lead = CountDown((1 / 120) * 10)
+        while nnc_lead.counting():
+            q = pump(True)
+            ui_request(queue=q)
 
         # For "immediate" blocks, present target at trial start
         self.present_stimuli(target_visible=self.block_condition == "immediate")
 
     def trial(self):  # type: ignore[override]
-        touched_start = False
         time_to_center = None
         time_to_selection = None
         touched_center = False
         touched_placeholder = False
         placeholder_touched = None
 
-        # spin up mocap listener
-        self.nnc.startup()
-
-        # provide a few frames worth of lead time
-        nnc_lead = CountDown(0.3)
-        while nnc_lead.counting():
-            q = pump(True)
-            ui_request(queue=q)
-
-        # participant readiness signalled by keypress
-        while touched_start is False:
-            q = pump(True)
-            _ = ui_request(queue=q)
-
-
-
         trial_timer = Stopwatch()
 
+        # particpants must touch center before anything else
         while not touched_center:
             q = pump(True)
             _ = ui_request(queue=q)
 
             # continuously check for boundary touches
-            curr_pos = mouse_pos()
-            which_bound = self.boundaries.which_boundary(curr_pos)
+            which_bound = self.boundaries.which_boundary(p=mouse_pos())
             if which_bound is not None:
 
                 # admonish participant for skipping center
-                if which_bound != "mid":
+
+                if which_bound == "left" or which_bound == "right":
                     clear()
 
                     fill()
@@ -204,10 +207,14 @@ class sequential_pointing(klibs.Experiment):
                         "Participant touched placeholder before center"
                     )
 
-                else:
+                elif which_bound == "mid":
                     # record time to center touch
                     time_to_center = trial_timer.elapsed()
                     touched_center = True
+
+                # silently ignore start position touches/hovering
+                else:
+                    pass
 
         # following center touch, present target if in "delayed" condition
         if self.block_condition == "delayed":
@@ -218,11 +225,9 @@ class sequential_pointing(klibs.Experiment):
             q = pump(True)
             _ = ui_request(queue=q)
 
-            curr_pos = mouse_pos()
+            which_bound = self.boundaries.which_boundary(p=mouse_pos())
 
-            which_bound = self.boundaries.which_boundary(curr_pos)
-
-            if which_bound is not None and which_bound != "mid":
+            if which_bound == "left" or which_bound == "right":
                 time_to_selection = trial_timer.elapsed()
                 placeholder_touched = which_bound
                 touched_placeholder = True
@@ -244,7 +249,8 @@ class sequential_pointing(klibs.Experiment):
         }
 
     def trial_clean_up(self):
-        mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
+        if P.development_mode:
+            mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
 
     def clean_up(self):
         pass
