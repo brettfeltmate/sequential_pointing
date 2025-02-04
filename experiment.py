@@ -44,8 +44,8 @@ class sequential_pointing(klibs.Experiment):
         if P.development_mode:
             self.console = Console()
 
-        self.nnc = NatNetClient()
-        self.nnc.marker_listener = self.marker_set_listener
+        # self.nnc = NatNetClient()
+        # self.nnc.marker_listener = self.marker_set_listener
 
         offset_y = P.screen_y * 0.2  # type: ignore[op_arithmetic]
         offset_x = P.screen_x * 0.25  # type: ignore[op_arithmetic]
@@ -73,11 +73,11 @@ class sequential_pointing(klibs.Experiment):
         )
 
         # create participant directory for mocap data
-        if not os.path.exists("OptiData"):
-            os.mkdir("OptiData")
-
-        os.mkdir(f"OptiData/{P.p_id}")
-        os.mkdir(f"OptiData/{P.p_id}/testing")
+        # if not os.path.exists("OptiData"):
+        #     os.mkdir("OptiData")
+        #
+        # os.mkdir(f"OptiData/{P.p_id}")
+        # os.mkdir(f"OptiData/{P.p_id}/testing")
 
         # set up condition factors
         # NOTE: first "delayed" is to serve as the practice block
@@ -95,7 +95,7 @@ class sequential_pointing(klibs.Experiment):
 
         # expand task sequence to include practice blocks
         if P.run_practice_blocks:
-            os.mkdir(f"OptiData/{P.p_id}/practice")
+            # os.mkdir(f"OptiData/{P.p_id}/practice")
 
             # insert practice blocks
             self.insert_practice_block(1, trial_counts=P.trials_per_practice_block)  # type: ignore[arg-type]
@@ -119,15 +119,15 @@ class sequential_pointing(klibs.Experiment):
         }
 
         # init block specific data dirs for mocap recordings
-        self.opti_dir = f"OptiData/{P.p_id}"
-        self.opti_dir += "/practice" if P.practicing else "/testing"
-
-        self.opti_dir += f"/{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
-
-        if os.path.exists(self.opti_dir):
-            raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
-        else:
-            os.mkdir(self.opti_dir)
+        # self.opti_dir = f"OptiData/{P.p_id}"
+        # self.opti_dir += "/practice" if P.practicing else "/testing"
+        #
+        # self.opti_dir += f"/{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
+        #
+        # if os.path.exists(self.opti_dir):
+        #     raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
+        # else:
+        #     os.mkdir(self.opti_dir)
 
         self.present_instructions()
 
@@ -142,11 +142,11 @@ class sequential_pointing(klibs.Experiment):
         self.target_loc = self.locs[self.block_likelihood[self.target_location]]  # type: ignore[attr-defined]
 
         # generate trial file location
-        self.opti_dir = (
-            self.opti_dir + f"/{P.trial_number}_target_at_" + "left"
-            if self.block_likelihood[self.target_location] == "left"  # type: ignore[attr-defined]
-            else "right"
-        )
+        # self.opti_dir = (
+        #     self.opti_dir + f"/{P.trial_number}_target_at_" + "left"
+        #     if self.block_likelihood[self.target_location] == "left"  # type: ignore[attr-defined]
+        #     else "right"
+        # )
 
         self.present_stimuli(pre_trial=True)
 
@@ -163,14 +163,14 @@ class sequential_pointing(klibs.Experiment):
                 break
 
         # spin up mocap listener
-        self.nnc.startup()
+        # self.nnc.startup()
 
         # provide opti a 10 frame head start
-        nnc_lead = CountDown((1 / 120) * 10)
-        while nnc_lead.counting():
-            q = pump(True)
-            ui_request(queue=q)
-
+        # nnc_lead = CountDown((1 / 120) * 10)
+        # while nnc_lead.counting():
+        #     q = pump(True)
+        #     ui_request(queue=q)
+        #
         # For "immediate" blocks, present target at trial start
         self.present_stimuli(target_visible=self.block_condition == "immediate")
 
@@ -269,11 +269,12 @@ class sequential_pointing(klibs.Experiment):
         }
 
     def trial_clean_up(self):
-        self.nnc.shutdown()
+        # self.nnc.shutdown()
         clear()
 
     def clean_up(self):
-        self.nnc.shutdown()
+        # self.nnc.shutdown()
+        pass
 
     def present_stimuli(self, pre_trial: bool = False, target_visible: bool = False):
         fill()
@@ -386,23 +387,24 @@ class sequential_pointing(klibs.Experiment):
             marker_set (dict): Dictionary containing marker data to be written.
                 Expected format: {'markers': [{'key1': val1, ...}, ...]}
         """
+        pass
 
-        if marker_set.get("label") == "hand":
-            # Append data to trial-specific CSV file
-            fname = self.opti_dir
-
-            # Timestamp marker data with relative trial time
-            header = list(marker_set["markers"][0].keys())
-
-            # if file doesn't exist, create it and write header
-            if not os.path.exists(fname):
-                with open(fname, "w", newline="") as file:
-                    writer = DictWriter(file, fieldnames=header)
-                    writer.writeheader()
-
-            # append marker data to file
-            with open(fname, "a", newline="") as file:
-                writer = DictWriter(file, fieldnames=header)
-                for marker in marker_set.get("markers", None):
-                    if marker is not None:
-                        writer.writerow(marker)
+        # if marker_set.get("label") == "hand":
+            # # Append data to trial-specific CSV file
+            # # fname = self.opti_dir
+            #
+            # # Timestamp marker data with relative trial time
+            # header = list(marker_set["markers"][0].keys())
+            #
+            # # if file doesn't exist, create it and write header
+            # if not os.path.exists(fname):
+            #     with open(fname, "w", newline="") as file:
+            #         writer = DictWriter(file, fieldnames=header)
+            #         writer.writeheader()
+            #
+            # # append marker data to file
+            # with open(fname, "a", newline="") as file:
+            #     writer = DictWriter(file, fieldnames=header)
+            #     for marker in marker_set.get("markers", None):
+            #         if marker is not None:
+            #             writer.writerow(marker)
