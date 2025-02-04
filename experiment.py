@@ -57,7 +57,7 @@ class sequential_pointing(klibs.Experiment):
 
         self.locs = {
             "start": (P.screen_x // 2, P.screen_y),  # type: ignore[op_arithmetic]
-            "mid": (P.screen_x // 2, P.screen_y - offset_y),  # type: ignore[op_arithmetic]
+            "center": (P.screen_x // 2, P.screen_y - offset_y),  # type: ignore[op_arithmetic]
             "left": (offset_x, offset_y),
             "right": (P.screen_x - offset_x, offset_y),
         }
@@ -207,7 +207,7 @@ class sequential_pointing(klibs.Experiment):
                         "Participant touched placeholder before center"
                     )
 
-            elif mouse_clicked(queue=q, within=self.bs.boundaries["mid"]):
+            elif mouse_clicked(queue=q, within=self.bs.boundaries["center"]):
                 time_to_center = self.evm.time_elapsed
                 touched_center = True
 
@@ -356,7 +356,7 @@ class sequential_pointing(klibs.Experiment):
             quit()
 
         if len(clicks):
-            # in ["start", "mid", "left", "right"]
+            # in ["start", "center", "left", "right"]
             clicked_reward = self.bs.within_boundary("reward", p=clicks[0])
             clicked_penalty = self.bs.within_boundary("penalty", p=clicks[0])
             clicked_rect = self.bs.within_boundary("rect", p=clicks[0])
