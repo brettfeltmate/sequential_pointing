@@ -2,10 +2,12 @@
 
 __author__ = "Brett Feltmate"
 
-import os
-from csv import DictWriter
 from random import shuffle, choice
 from rich.console import Console
+import os
+from csv import DictWriter
+
+from math import floor
 
 import klibs
 from klibs import P
@@ -37,6 +39,11 @@ GRAY = (128, 128, 128, 255)
 WHITE = (255, 255, 255, 255)
 ORANGE = (255, 165, 0, 255)
 
+# Position offsets for circles (in inches)
+CENTER_OFFSET = 10
+TARGET_OFFSET_Y = 20
+TARGET_OFFSET_X = 5
+
 
 class sequential_pointing(klibs.Experiment):
 
@@ -44,22 +51,25 @@ class sequential_pointing(klibs.Experiment):
         if P.development_mode:
             self.console = Console()
 
-        # self.nnc = NatNetClient()
-        # self.nnc.marker_listener = self.marker_set_listener
-
-        offset_y = P.screen_y * 0.2  # type: ignore[op_arithmetic]
-        offset_x = P.screen_x * 0.25  # type: ignore[op_arithmetic]
+        self.nnc = NatNetClient()
+        self.nnc.marker_listener = self.marker_set_listener
 
         placeholder_size = P.ppi
+
+        y_start = P.screen_y  # type: ignore[op_arithmetic]
+        y_middle = P.screen_y - (P.ppi * CENTER_OFFSET)  # type: ignore[op_arithmetic]
+        y_targets = P.screen_y - (P.ppi * TARGET_OFFSET_Y)  # type: ignore[op_arithmetic]
+        x_left = P.screen_c[0] - (P.ppi * TARGET_OFFSET_X)  # type: ignore[op_arithmetic]
+        x_right = P.screen_c[0] + (P.ppi * TARGET_OFFSET_X)  # type: ignore[op_arithmetic]
 
         self.placeholder = kld.Circle(diameter=placeholder_size, fill=WHITE)
         self.target = kld.Circle(diameter=placeholder_size, fill=ORANGE)
 
         self.locs = {
-            "start": (P.screen_x // 2, P.screen_y),  # type: ignore[op_arithmetic]
-            "center": (P.screen_x // 2, P.screen_y - offset_y),  # type: ignore[op_arithmetic]
-            "left": (offset_x, offset_y),
-            "right": (P.screen_x - offset_x, offset_y),
+            "start": (P.screen_c[0], y_start),  # type: ignore[op_arithmetic]
+            "center": (P.screen_c[0], y_middle),  # type: ignore[op_arithmetic]
+            "left": (x_left, y_targets),
+            "right": (x_right, y_targets),
         }
 
         # boundaries for click detection
@@ -73,11 +83,11 @@ class sequential_pointing(klibs.Experiment):
         )
 
         # create participant directory for mocap data
-        # if not os.path.exists("OptiData"):
-        #     os.mkdir("OptiData")
-        #
-        # os.mkdir(f"OptiData/{P.p_id}")
-        # os.mkdir(f"OptiData/{P.p_id}/testing")
+        if not os.path.exists("OptiData"):
+            os.mkdir("OptiData")
+        
+        os.mkdir(f"OptiData/{P.p_id}")
+        os.mkdir(f"OptiData/{P.p_id}/testing")
 
         # set up condition factors
         # NOTE: first "delayed" is to serve as the practice block
@@ -95,7 +105,7 @@ class sequential_pointing(klibs.Experiment):
 
         # expand task sequence to include practice blocks
         if P.run_practice_blocks:
-            # os.mkdir(f"OptiData/{P.p_id}/practice")
+            os.mkdir(f"OptiData/{P.p_id}/practice")
 
             # insert practice blocks
             self.insert_practice_block(1, trial_counts=P.trials_per_practice_block)  # type: ignore[arg-type]
@@ -103,6 +113,12 @@ class sequential_pointing(klibs.Experiment):
         # Otherwise, drop practice block
         else:
             _ = self.condition_sequence.pop(0)
+
+        if P.development_mode:
+            print("-------------------------")
+            print("setup()")
+            print("-------------------------")
+            self.console.log(log_locals=True)
 
     def block(self):
         # get block condition
@@ -119,17 +135,23 @@ class sequential_pointing(klibs.Experiment):
         }
 
         # init block specific data dirs for mocap recordings
-        # self.opti_dir = f"OptiData/{P.p_id}"
-        # self.opti_dir += "/practice" if P.practicing else "/testing"
-        #
-        # self.opti_dir += f"/{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
-        #
-        # if os.path.exists(self.opti_dir):
-        #     raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
-        # else:
-        #     os.mkdir(self.opti_dir)
+        self.opti_dir = f"OptiData/{P.p_id}"
+        self.opti_dir += "/practice" if P.practicing else "/testing"
+       
+        self.opti_dir += f"/{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
+       
+        if os.path.exists(self.opti_dir):
+            raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
+        else:
+            os.mkdir(self.opti_dir)
 
         self.present_instructions()
+
+        if P.development_mode:
+            print("-------------------------")
+            print("block()")
+            print("-------------------------")
+            self.console.log(log_locals=True)
 
     def trial_prep(self):
 
@@ -142,16 +164,16 @@ class sequential_pointing(klibs.Experiment):
         self.target_loc = self.locs[self.block_likelihood[self.target_location]]  # type: ignore[attr-defined]
 
         # generate trial file location
-        # self.opti_dir = (
-        #     self.opti_dir + f"/{P.trial_number}_target_at_" + "left"
-        #     if self.block_likelihood[self.target_location] == "left"  # type: ignore[attr-defined]
-        #     else "right"
-        # )
+        self.opti_dir = (
+            self.opti_dir + f"/{P.trial_number}_target_at_" + "left"
+            if self.block_likelihood[self.target_location] == "left"  # type: ignore[attr-defined]
+            else "right"
+        )
 
         self.present_stimuli(pre_trial=True)
 
         if P.development_mode:
-            mouse_pos(position=(P.screen_x // 2, P.screen_y))  # type: ignore[op_arithmetic]
+            mouse_pos(position=(P.screen_x // 2, P.screen_y - P.ppi))  # type: ignore[op_arithmetic]
 
         # wait for participant to touch start position before proceeding
         while True:
@@ -163,16 +185,22 @@ class sequential_pointing(klibs.Experiment):
                 break
 
         # spin up mocap listener
-        # self.nnc.startup()
+        self.nnc.startup()
 
         # provide opti a 10 frame head start
-        # nnc_lead = CountDown((1 / 120) * 10)
-        # while nnc_lead.counting():
-        #     q = pump(True)
-        #     ui_request(queue=q)
-        #
+        nnc_lead = CountDown((1 / 120) * 10)
+        while nnc_lead.counting():
+            q = pump(True)
+            ui_request(queue=q)
+        
         # For "immediate" blocks, present target at trial start
         self.present_stimuli(target_visible=self.block_condition == "immediate")
+
+        if P.development_mode:
+            print("-------------------------")
+            print("trial_prep()")
+            print("-------------------------")
+            self.console.log(log_locals=True)
 
     def trial(self):  # type: ignore[override]
         time_to_center = None
@@ -203,9 +231,9 @@ class sequential_pointing(klibs.Experiment):
                     q = pump(True)
                     _ = ui_request(queue=q)
 
-                    raise TrialException(
-                        "Participant touched placeholder before center"
-                    )
+                raise TrialException(
+                    "Participant touched placeholder before center"
+                )
 
             elif mouse_clicked(queue=q, within=self.bs.boundaries["center"]):
                 time_to_center = self.evm.time_elapsed
@@ -218,6 +246,13 @@ class sequential_pointing(klibs.Experiment):
         if self.block_condition == "delayed":
             self.present_stimuli(target_visible=True)
 
+
+        if P.development_mode:
+            print("-------------------------")
+            print("trial(): post-center-touch")
+            print("-------------------------")
+            self.console.log(log_locals=True)
+
         # wait for contact with either target placeholder
         while not touched_placeholder:
             q = pump(True)
@@ -228,12 +263,46 @@ class sequential_pointing(klibs.Experiment):
                 placeholder_touched = "left"
                 touched_placeholder = True
 
+                if P.development_mode:
+                    clear()
+
+                    fill()
+                    message(
+                        "Touched left",
+                        location=P.screen_c,
+                        blit_txt=True,
+                    )
+                    flip()
+
+                    abort_delay = CountDown(.3)
+                    while abort_delay.counting():
+                        q = pump(True)
+                        _ = ui_request(queue=q)
+
             elif mouse_clicked(queue=q, within=self.bs.boundaries["right"]):
                 time_to_selection = self.evm.time_elapsed
                 placeholder_touched = "right"
                 touched_placeholder = True
 
-            elif mouse_clicked(queue=q, within=self.bs.boundaries["center"]):
+                if P.development_mode:
+                    clear()
+
+                    fill()
+                    message(
+                        "Touched left",
+                        location=P.screen_c,
+                        blit_txt=True,
+                    )
+                    flip()
+
+                    abort_delay = CountDown(.3)
+                    while abort_delay.counting():
+                        q = pump(True)
+                        _ = ui_request(queue=q)
+
+            elif mouse_clicked(
+                queue=q, within=self.bs.boundaries["center"]
+            ) or mouse_clicked(queue=q, within=self.bs.boundaries["start"]):
 
                 clear()
 
@@ -250,12 +319,33 @@ class sequential_pointing(klibs.Experiment):
                     q = pump(True)
                     _ = ui_request(queue=q)
 
-                    raise TrialException("Participant touched center twice")
+                raise TrialException("Participant touched center twice")
+
+            # elif mouse_clicked():
+                # clear()
+                #
+                # fill()
+                #
+                # message(
+                #     "Only touch the screen within one of the circles",
+                #     location=P.screen_c,
+                #     blit_txt=True,
+                # )
+                #
+                # flip()
+                #
+                # abort_delay = CountDown(1)
+                # while abort_delay.counting():
+                #     q = pump(True)
+                #     _ = ui_request(queue=q)
+                #
+                # raise TrialException("Participant touched screen")
 
             else:
                 pass
 
-        return {
+
+        trial_out = {
             "block_num": P.block_number,
             "trial_num": P.trial_number,
             "practicing": P.practicing,
@@ -267,6 +357,14 @@ class sequential_pointing(klibs.Experiment):
             "time_to_selection": time_to_selection,
             "correct": placeholder_touched == self.block_likelihood[self.target_location],  # type: ignore[attr-defined]
         }
+
+        if P.development_mode:
+            print("-------------------------")
+            print("trial(): end")
+            print("-------------------------")
+            self.console.log(log_locals=True)
+
+        return trial_out 
 
     def trial_clean_up(self):
         # self.nnc.shutdown()
@@ -296,17 +394,19 @@ class sequential_pointing(klibs.Experiment):
 
         flip()
 
+        if P.development_mode:
+            print("-------------------------")
+            print("present_stimuli()")
+            print("-------------------------")
+            self.console.log(log_locals=True)
+
     def present_instructions(self):
         delayed = (
             "To begin a trial, place your right index finger at the starting circle (bottom center of the monitor)."
             "\n\n"
-            "Once you do, all circles will turn white. When that happens, touch the MIDDLE circle with your finger"
-            "\n"
-            "as quickly and accurately as possible."
+            "Once you do, all circles will turn white. When that happens, touch the MIDDLE circle with your finger as quickly and accurately as possible."
             "\n\n"
-            "Once you've touched the middle circle, one of the two furthest circles will turn orange."
-            "\n"
-            "Your task is then to touch the orange circle as quickly and accurately as possible."
+            "Once you've touched the middle circle, one of the two furthest circles will turn orange. Your task is then to touch the orange circle as quickly and accurately as possible."
             "\n\n"
             "Once the trial is complete, place your finger back at the starting circle to begin the next trial."
         )
@@ -316,9 +416,7 @@ class sequential_pointing(klibs.Experiment):
             "\n\n"
             "Once you do, all circles will turn white, except for one of the two furthest circles, which will turn orange."
             "\n\n"
-            "Once this happens, reach to touch the middle circle FIRST, as quickly and accurately as possible."
-            "\n"
-            "THEN, touch the orange circle as quickly and accurately as possible."
+            "Once this happens, reach to touch the middle circle FIRST, as quickly and accurately as possible. THEN, touch the orange circle as quickly and accurately as possible."
             "\n\n"
             "Once the trial is complete, place your finger back at the starting circle to begin the next trial."
         )
@@ -342,7 +440,12 @@ class sequential_pointing(klibs.Experiment):
             )
 
         fill()
-        message(text=instrux, location=P.screen_c, blit_txt=True)
+        message(
+            text=instrux,
+            location=P.screen_c,
+            wrap_width=floor(P.screen_x * 0.8),  # type: ignore[operator]
+            blit_txt=True,
+        )
         flip()
 
         any_key()
@@ -375,7 +478,9 @@ class sequential_pointing(klibs.Experiment):
                     clicked = "rect"
 
                 if P.development_mode:
-                    print("\nlisten_for_response()")
+                    print("-------------------------")
+                    print("listen_for_click()")
+                    print("-------------------------")
                     self.console.log(log_locals=True)
 
                 return clicks[0], clicked
@@ -389,22 +494,22 @@ class sequential_pointing(klibs.Experiment):
         """
         pass
 
-        # if marker_set.get("label") == "hand":
-            # # Append data to trial-specific CSV file
-            # # fname = self.opti_dir
-            #
-            # # Timestamp marker data with relative trial time
-            # header = list(marker_set["markers"][0].keys())
-            #
-            # # if file doesn't exist, create it and write header
-            # if not os.path.exists(fname):
-            #     with open(fname, "w", newline="") as file:
-            #         writer = DictWriter(file, fieldnames=header)
-            #         writer.writeheader()
-            #
-            # # append marker data to file
-            # with open(fname, "a", newline="") as file:
-            #     writer = DictWriter(file, fieldnames=header)
-            #     for marker in marker_set.get("markers", None):
-            #         if marker is not None:
-            #             writer.writerow(marker)
+        if marker_set.get("label") == "hand":
+        # Append data to trial-specific CSV file
+            fname = self.opti_dir
+
+            # Timestamp marker data with relative trial time
+            header = list(marker_set["markers"][0].keys())
+
+            # if file doesn't exist, create it and write header
+            if not os.path.exists(fname):
+                with open(fname, "w", newline="") as file:
+                    writer = DictWriter(file, fieldnames=header)
+                    writer.writeheader()
+
+            # append marker data to file
+            with open(fname, "a", newline="") as file:
+                writer = DictWriter(file, fieldnames=header)
+                for marker in marker_set.get("markers", None):
+                    if marker is not None:
+                        writer.writerow(marker)

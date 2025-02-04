@@ -6,10 +6,10 @@
 collect_demographics = True
 manual_demographics_collection = False
 manual_trial_generation = False
-run_practice_blocks = True
+run_practice_blocks = False
 multi_user = False
 view_distance = 57 # in centimeters, 57cm = 1 deg of visual angle per cm of screen
-allow_hidpi = False
+allow_hidpi = True
 
 #########################################
 # Available Hardware
