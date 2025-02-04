@@ -68,7 +68,7 @@ class sequential_pointing(klibs.Experiment):
                 CircleBoundary(
                     label=loc, center=self.locs[loc], radius=placeholder_size // 2
                 )
-                for loc in ["start", "mid", "left", "right"]
+                for loc in ["start", "center", "left", "right"]
             ]
         )
 
