@@ -138,7 +138,7 @@ class sequential_pointing(klibs.Experiment):
         self.opti_dir = f"OptiData/{P.p_id}"
         self.opti_dir += "/practice" if P.practicing else "/testing"
        
-        self.opti_dir += f"/{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
+        self.opti_dir += f"/{P.block_number}_{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
        
         if os.path.exists(self.opti_dir):
             raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
