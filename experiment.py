@@ -52,7 +52,7 @@ class sequential_pointing(klibs.Experiment):
             self.console = Console()
 
         self.nnc = NatNetClient()
-        self.nnc.marker_listener = self.marker_set_listener
+        self.nnc.markers_listener = self.marker_set_listener
 
         placeholder_size = P.ppi
 
