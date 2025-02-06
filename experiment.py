@@ -85,7 +85,7 @@ class sequential_pointing(klibs.Experiment):
         # create participant directory for mocap data
         if not os.path.exists("OptiData"):
             os.mkdir("OptiData")
-        
+
         os.mkdir(f"OptiData/{P.p_id}")
         os.mkdir(f"OptiData/{P.p_id}/testing")
 
@@ -137,9 +137,9 @@ class sequential_pointing(klibs.Experiment):
         # init block specific data dirs for mocap recordings
         self.opti_dir = f"OptiData/{P.p_id}"
         self.opti_dir += "/practice" if P.practicing else "/testing"
-       
+
         self.opti_dir += f"/{P.block_number}_{self.block_condition}_{self.block_likelihood[LIKELY]}_bias"
-       
+
         if os.path.exists(self.opti_dir):
             raise RuntimeError(f"Data directory already exists at {self.opti_dir}")
         else:
@@ -164,11 +164,7 @@ class sequential_pointing(klibs.Experiment):
         self.target_loc = self.locs[self.block_likelihood[self.target_location]]  # type: ignore[attr-defined]
 
         # generate trial file location
-        self.opti_dir = (
-            self.opti_dir + f"/{P.trial_number}_target_at_" + "left"
-            if self.block_likelihood[self.target_location] == "left"  # type: ignore[attr-defined]
-            else "right"
-        )
+        self.opti_trial_fname = f"/trial_{P.trial_number}_{self.block_likelihood[self.target_location]}_target"
 
         self.present_stimuli(pre_trial=True)
 
@@ -192,7 +188,7 @@ class sequential_pointing(klibs.Experiment):
         while nnc_lead.counting():
             q = pump(True)
             ui_request(queue=q)
-        
+
         # For "immediate" blocks, present target at trial start
         self.present_stimuli(target_visible=self.block_condition == "immediate")
 
@@ -231,9 +227,7 @@ class sequential_pointing(klibs.Experiment):
                     q = pump(True)
                     _ = ui_request(queue=q)
 
-                raise TrialException(
-                    "Participant touched placeholder before center"
-                )
+                raise TrialException("Participant touched placeholder before center")
 
             elif mouse_clicked(queue=q, within=self.bs.boundaries["center"]):
                 time_to_center = self.evm.time_elapsed
@@ -245,7 +239,6 @@ class sequential_pointing(klibs.Experiment):
         # following center touch, present target if in "delayed" condition
         if self.block_condition == "delayed":
             self.present_stimuli(target_visible=True)
-
 
         if P.development_mode:
             print("-------------------------")
@@ -274,7 +267,7 @@ class sequential_pointing(klibs.Experiment):
                     )
                     flip()
 
-                    abort_delay = CountDown(.3)
+                    abort_delay = CountDown(0.3)
                     while abort_delay.counting():
                         q = pump(True)
                         _ = ui_request(queue=q)
@@ -295,7 +288,7 @@ class sequential_pointing(klibs.Experiment):
                     )
                     flip()
 
-                    abort_delay = CountDown(.3)
+                    abort_delay = CountDown(0.3)
                     while abort_delay.counting():
                         q = pump(True)
                         _ = ui_request(queue=q)
@@ -321,29 +314,30 @@ class sequential_pointing(klibs.Experiment):
 
                 raise TrialException("Participant touched center twice")
 
+            # FIXME: This gets executed regarless of clicked-on location
+            #
             # elif mouse_clicked():
-                # clear()
-                #
-                # fill()
-                #
-                # message(
-                #     "Only touch the screen within one of the circles",
-                #     location=P.screen_c,
-                #     blit_txt=True,
-                # )
-                #
-                # flip()
-                #
-                # abort_delay = CountDown(1)
-                # while abort_delay.counting():
-                #     q = pump(True)
-                #     _ = ui_request(queue=q)
-                #
-                # raise TrialException("Participant touched screen")
+            # clear()
+            #
+            # fill()
+            #
+            # message(
+            #     "Only touch the screen within one of the circles",
+            #     location=P.screen_c,
+            #     blit_txt=True,
+            # )
+            #
+            # flip()
+            #
+            # abort_delay = CountDown(1)
+            # while abort_delay.counting():
+            #     q = pump(True)
+            #     _ = ui_request(queue=q)
+            #
+            # raise TrialException("Participant touched screen")
 
             else:
                 pass
-
 
         trial_out = {
             "block_num": P.block_number,
@@ -364,7 +358,7 @@ class sequential_pointing(klibs.Experiment):
             print("-------------------------")
             self.console.log(log_locals=True)
 
-        return trial_out 
+        return trial_out
 
     def trial_clean_up(self):
         # self.nnc.shutdown()
@@ -495,8 +489,8 @@ class sequential_pointing(klibs.Experiment):
         pass
 
         if marker_set.get("label") == "hand":
-        # Append data to trial-specific CSV file
-            fname = self.opti_dir
+            # Append data to trial-specific CSV file
+            fname = self.opti_dir + self.opti_trial_fname
 
             # Timestamp marker data with relative trial time
             header = list(marker_set["markers"][0].keys())
