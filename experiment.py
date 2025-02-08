@@ -21,7 +21,6 @@ from klibs.KLUserInterface import (
     ui_request,
     mouse_pos,
     mouse_clicked,
-    get_clicks,
 )
 
 from klibs.KLUtilities import pump
@@ -34,6 +33,13 @@ from natnetclient_rough import NatNetClient  # type: ignore[import]
 
 LIKELY = "likely"
 UNLIKELY = "unlikely"
+DELAYED = "delayed"
+IMMEDIATE = "immediate"
+LEFT = "left"
+RIGHT = "right"
+CENTER = "center"
+START = "start"
+
 
 GRAY = (128, 128, 128, 255)
 WHITE = (255, 255, 255, 255)
@@ -48,8 +54,7 @@ TARGET_OFFSET_X = 5
 class sequential_pointing(klibs.Experiment):
 
     def setup(self):
-        if P.development_mode:
-            self.console = Console()
+        self.console = Console()
 
         self.nnc = NatNetClient()
         self.nnc.markers_listener = self.marker_set_listener
@@ -66,10 +71,10 @@ class sequential_pointing(klibs.Experiment):
         self.target = kld.Circle(diameter=placeholder_size, fill=ORANGE)
 
         self.locs = {
-            "start": (P.screen_c[0], y_start),  # type: ignore[op_arithmetic]
-            "center": (P.screen_c[0], y_middle),  # type: ignore[op_arithmetic]
-            "left": (x_left, y_targets),
-            "right": (x_right, y_targets),
+            START: (P.screen_c[0], y_start),  # type: ignore[op_arithmetic]
+            CENTER: (P.screen_c[0], y_middle),  # type: ignore[op_arithmetic]
+            LEFT: (x_left, y_targets),
+            RIGHT: (x_right, y_targets),
         }
 
         # boundaries for click detection
@@ -78,7 +83,7 @@ class sequential_pointing(klibs.Experiment):
                 CircleBoundary(
                     label=loc, center=self.locs[loc], radius=placeholder_size // 2
                 )
-                for loc in ["start", "center", "left", "right"]
+                for loc in [START, CENTER, LEFT, RIGHT]
             ]
         )
 
@@ -92,13 +97,13 @@ class sequential_pointing(klibs.Experiment):
         # set up condition factors
         # NOTE: first "delayed" is to serve as the practice block
         self.condition_sequence = [
-            "delayed",
-            "delayed",
-            "immediate",
-            "immediate",
-            "delayed",
+            DELAYED,
+            DELAYED,
+            IMMEDIATE,
+            IMMEDIATE,
+            DELAYED,
         ]
-        self.likely_location = ["left", "right"]
+        self.likely_location = [LEFT, RIGHT]
 
         # randomize initial location bias across participants
         shuffle(self.likely_location)
@@ -157,7 +162,7 @@ class sequential_pointing(klibs.Experiment):
 
         # klibs lacks a direct method of altering independent variables at the block level,
         # so need to manually select target location to (mostly) fix the odds at 1:1.
-        if self.block_condition == "immediate":
+        if self.block_condition == IMMEDIATE:
             self.target_location = choice([LIKELY, UNLIKELY])
 
         # establish target location
@@ -177,7 +182,7 @@ class sequential_pointing(klibs.Experiment):
             _ = ui_request(queue=q)
 
             # check for start position touch
-            if mouse_clicked(within=self.bs.boundaries["start"], queue=q):
+            if mouse_clicked(within=self.bs.boundaries[START], queue=q):
                 break
 
         # spin up mocap listener
@@ -190,7 +195,7 @@ class sequential_pointing(klibs.Experiment):
             ui_request(queue=q)
 
         # For "immediate" blocks, present target at trial start
-        self.present_stimuli(target_visible=self.block_condition == "immediate")
+        self.present_stimuli(target_visible=self.block_condition == IMMEDIATE)
 
         if P.development_mode:
             print("-------------------------")
@@ -210,134 +215,49 @@ class sequential_pointing(klibs.Experiment):
             q = pump(True)
             _ = ui_request(queue=q)
 
-            if mouse_clicked(
-                queue=q, within=self.bs.boundaries["left"]
-            ) or mouse_clicked(queue=q, within=self.bs.boundaries["right"]):
+            pos = mouse_pos()
+            is_within = self.bs.which_boundary(p=pos, ignore=[START])
 
-                fill()
-                message(
-                    "Must touch center before touching target",
-                    location=P.screen_c,
-                    blit_txt=True,
-                )
-                flip()
-
-                abort_delay = CountDown(1)
-                while abort_delay.counting():
-                    q = pump(True)
-                    _ = ui_request(queue=q)
-
-                raise TrialException("Participant touched placeholder before center")
-
-            elif mouse_clicked(queue=q, within=self.bs.boundaries["center"]):
-                time_to_center = self.evm.time_elapsed
+            if is_within == CENTER:
+                time_to_center = self.evm.trial_time_ms
                 touched_center = True
 
+            elif is_within is None:
+                self.console.log(pos, is_within, log_locals=True)
+                self.admonish(
+                    msg="Unexpected error; get Brett",
+                    die=True,
+                )
+
             else:
-                pass
+                self.admonish(msg="Must touch center circle first!", err="not center")
 
         # following center touch, present target if in "delayed" condition
-        if self.block_condition == "delayed":
+        if self.block_condition == DELAYED:
             self.present_stimuli(target_visible=True)
-
-        if P.development_mode:
-            print("-------------------------")
-            print("trial(): post-center-touch")
-            print("-------------------------")
-            self.console.log(log_locals=True)
 
         # wait for contact with either target placeholder
         while not touched_placeholder:
             q = pump(True)
             _ = ui_request(queue=q)
 
-            if mouse_clicked(queue=q, within=self.bs.boundaries["left"]):
-                time_to_selection = self.evm.time_elapsed
-                placeholder_touched = "left"
-                touched_placeholder = True
+            pos = mouse_pos()
+            is_within = self.bs.which_boundary(p=pos, ignore=[START])
 
-                if P.development_mode:
-                    clear()
-
-                    fill()
-                    message(
-                        "Touched left",
-                        location=P.screen_c,
-                        blit_txt=True,
-                    )
-                    flip()
-
-                    abort_delay = CountDown(0.3)
-                    while abort_delay.counting():
-                        q = pump(True)
-                        _ = ui_request(queue=q)
-
-            elif mouse_clicked(queue=q, within=self.bs.boundaries["right"]):
-                time_to_selection = self.evm.time_elapsed
-                placeholder_touched = "right"
-                touched_placeholder = True
-
-                if P.development_mode:
-                    clear()
-
-                    fill()
-                    message(
-                        "Touched left",
-                        location=P.screen_c,
-                        blit_txt=True,
-                    )
-                    flip()
-
-                    abort_delay = CountDown(0.3)
-                    while abort_delay.counting():
-                        q = pump(True)
-                        _ = ui_request(queue=q)
-
-            elif mouse_clicked(
-                queue=q, within=self.bs.boundaries["center"]
-            ) or mouse_clicked(queue=q, within=self.bs.boundaries["start"]):
-
-                clear()
-
-                fill()
-                message(
-                    "Must touch either the left or right circle after touching center",
-                    location=P.screen_c,
-                    blit_txt=True,
+            if is_within in [CENTER, None]:
+                self.admonish(
+                    msg="Must touch either the left or right circle after touching center",
+                    err="not target",
                 )
-                flip()
 
-                abort_delay = CountDown(1)
-                while abort_delay.counting():
-                    q = pump(True)
-                    _ = ui_request(queue=q)
-
-                raise TrialException("Participant touched center twice")
-
-            # FIXME: This gets executed regarless of clicked-on location
-            #
-            # elif mouse_clicked():
-            # clear()
-            #
-            # fill()
-            #
-            # message(
-            #     "Only touch the screen within one of the circles",
-            #     location=P.screen_c,
-            #     blit_txt=True,
-            # )
-            #
-            # flip()
-            #
-            # abort_delay = CountDown(1)
-            # while abort_delay.counting():
-            #     q = pump(True)
-            #     _ = ui_request(queue=q)
-            #
-            # raise TrialException("Participant touched screen")
+            elif is_within in [LEFT, RIGHT]:
+                time_to_selection = self.evm.time_elapsed
+                placeholder_touched = is_within
+                touched_placeholder = True
 
             else:
-                pass
+                self.console.log(pos, is_within, log_locals=True)
+                self.admonish(msg="Unexpected error; get Brett", die=True)
 
         trial_out = {
             "block_num": P.block_number,
@@ -361,12 +281,11 @@ class sequential_pointing(klibs.Experiment):
         return trial_out
 
     def trial_clean_up(self):
-        # self.nnc.shutdown()
+        self.nnc.shutdown()
         clear()
 
     def clean_up(self):
-        # self.nnc.shutdown()
-        pass
+        self.nnc.shutdown()
 
     def present_stimuli(self, pre_trial: bool = False, target_visible: bool = False):
         fill()
@@ -395,7 +314,7 @@ class sequential_pointing(klibs.Experiment):
             self.console.log(log_locals=True)
 
     def present_instructions(self):
-        delayed = (
+        delayed_txt = (
             "To begin a trial, place your right index finger at the starting circle (bottom center of the monitor)."
             "\n\n"
             "Once you do, all circles will turn white. When that happens, touch the MIDDLE circle with your finger as quickly and accurately as possible."
@@ -405,7 +324,7 @@ class sequential_pointing(klibs.Experiment):
             "Once the trial is complete, place your finger back at the starting circle to begin the next trial."
         )
 
-        immediate = (
+        immediate_txt = (
             "To begin a trial, place your right index finger at the starting circle (bottom center of the monitor)."
             "\n\n"
             "Once you do, all circles will turn white, except for one of the two furthest circles, which will turn orange."
@@ -415,7 +334,7 @@ class sequential_pointing(klibs.Experiment):
             "Once the trial is complete, place your finger back at the starting circle to begin the next trial."
         )
 
-        instrux = delayed if self.block_condition == "delayed" else immediate
+        instrux = delayed_txt if self.block_condition == DELAYED else immediate_txt
 
         if P.practicing:
             instrux += (
@@ -444,40 +363,23 @@ class sequential_pointing(klibs.Experiment):
 
         any_key()
 
-    def listen_for_click(self):
-        clicks = get_clicks()
-        clicked = None
+    def admonish(self, msg: str = "", err: str = "", die: bool = False) -> None:
 
-        if len(clicks) > 1:
-            print("Multiple clicks detected. Fix that.")
+        if msg:
+            fill()
+            message(text=msg, location=P.screen_c, registration=5, blit_txt=True)
+            flip()
+
+            counter = CountDown(1)
+            while counter.counting():
+                q = pump(True)
+                _ = ui_request(queue=q)
+
+        if die:
             quit()
 
-        if len(clicks):
-            # in ["start", "center", "left", "right"]
-            clicked_reward = self.bs.within_boundary("reward", p=clicks[0])
-            clicked_penalty = self.bs.within_boundary("penalty", p=clicks[0])
-            clicked_rect = self.bs.within_boundary("rect", p=clicks[0])
-
-            if clicked_rect:
-                if clicked_reward and not clicked_penalty:
-                    clicked = "reward"
-
-                elif clicked_penalty and not clicked_reward:
-                    clicked = "penalty"
-
-                elif clicked_reward and clicked_penalty:
-                    clicked = "overlap"
-
-                else:
-                    clicked = "rect"
-
-                if P.development_mode:
-                    print("-------------------------")
-                    print("listen_for_click()")
-                    print("-------------------------")
-                    self.console.log(log_locals=True)
-
-                return clicks[0], clicked
+        else:
+            raise TrialException(err)
 
     def marker_set_listener(self, marker_set: dict) -> None:
         """Write marker set data to CSV file.
