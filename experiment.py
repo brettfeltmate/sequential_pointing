@@ -230,7 +230,7 @@ class sequential_pointing(klibs.Experiment):
                 raise TrialException("Participant touched placeholder before center")
 
             elif mouse_clicked(queue=q, within=self.bs.boundaries["center"]):
-                time_to_center = self.evm.time_elapsed
+                time_to_center = self.evm.trial_time_ms
                 touched_center = True
 
             else:
@@ -252,7 +252,7 @@ class sequential_pointing(klibs.Experiment):
             _ = ui_request(queue=q)
 
             if mouse_clicked(queue=q, within=self.bs.boundaries["left"]):
-                time_to_selection = self.evm.time_elapsed
+                time_to_selection = self.evm.trial_time_ms
                 placeholder_touched = "left"
                 touched_placeholder = True
 
@@ -273,7 +273,7 @@ class sequential_pointing(klibs.Experiment):
                         _ = ui_request(queue=q)
 
             elif mouse_clicked(queue=q, within=self.bs.boundaries["right"]):
-                time_to_selection = self.evm.time_elapsed
+                time_to_selection = self.evm.trial_time_ms
                 placeholder_touched = "right"
                 touched_placeholder = True
 
